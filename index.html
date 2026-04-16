@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>studio:Revolver</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Theme tokens ── */
+    :root {
+      --bg:           #0b0b0b;
+      --bg-still:     #1a1a1a;
+      --fg:           rgba(255,255,255,0.85);
+      --fg-muted:     rgba(255,255,255,0.25);
+      --fg-hover:     rgba(255,255,255,0.7);
+      --border:       rgba(255,255,255,0.08);
+      --lb-bg:        rgba(0,0,0,0.92);
+      --lb-btn:       rgba(255,255,255,0.12);
+      --lb-btn-hover: rgba(255,255,255,0.22);
+      --lb-fg:        rgba(255,255,255,0.6);
+    }
+    [data-theme="light"] {
+      --bg:           #f5f5f5;
+      --bg-still:     #d8d8d8;
+      --fg:           rgba(0,0,0,0.85);
+      --fg-muted:     rgba(0,0,0,0.3);
+      --fg-hover:     rgba(0,0,0,0.7);
+      --border:       rgba(0,0,0,0.08);
+      --lb-bg:        rgba(245,245,245,0.95);
+      --lb-btn:       rgba(0,0,0,0.08);
+      --lb-btn-hover: rgba(0,0,0,0.16);
+      --lb-fg:        rgba(0,0,0,0.5);
+    }
+
+    @font-face {
+      font-family: "Antique Legacy";
+      src: url("fonts/Antique-Legacy-Light.otf") format("opentype");
+      font-weight: 300;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "Antique Legacy";
+      src: url("fonts/Antique-Legacy-Book.otf") format("opentype");
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Antique Legacy", serif;
+      font-weight: 300;
+      text-transform: uppercase;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.25s, color 0.25s;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 48px 40px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .title {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--fg);
+    }
+
+    /* ── Theme toggle ── */
+    .theme-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .theme-label {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      transition: color 0.2s;
+    }
+    .theme-control:hover .theme-label { color: var(--fg-hover); }
+
+    .switch-track {
+      position: relative;
+      width: 28px;
+      height: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      transition: border-color 0.2s, background 0.2s;
+      flex-shrink: 0;
+    }
+    .theme-control:hover .switch-track { border-color: var(--fg-muted); }
+    [data-theme="light"] .switch-track { background: rgba(0,0,0,0.08); }
+
+    .switch-knob {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--fg-muted);
+      transition: transform 0.2s, background 0.2s;
+    }
+    [data-theme="light"] .switch-knob {
+      transform: translateX(12px);
+      background: var(--fg);
+    }
+
+    .divider {
+      margin: 16px 40px 0;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Grid ── */
+    .grid {
+      padding: 3px 40px 0;
+      display: flex;
+      gap: 3px;
+      min-height: 200px;
+    }
+
+    .col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .still {
+      width: 100%;
+      background: var(--bg-still);
+      cursor: pointer;
+      overflow: hidden;
+      transition: opacity 0.2s;
+    }
+    .still:hover { opacity: 0.8; }
+
+    .still img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .still img.loaded { opacity: 1; }
+
+    /* loading state */
+    .grid-loading {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 0;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 40px;
+      padding: 20px 40px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+    }
+
+    footer a {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    footer a:hover { color: var(--fg-hover); }
+
+    .footer-copy {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: var(--fg-muted);
+      opacity: 0.5;
+    }
+
+    /* ── Lightbox ── */
+    .lb {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--lb-bg);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .lb.open { display: flex; }
+
+    .lb-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lb-img {
+      max-width: calc(100vw - 120px);
+      max-height: calc(100vh - 80px);
+      object-fit: contain;
+      display: block;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .lb-img.loaded { opacity: 1; }
+
+    .lb-close {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      background: none;
+      border: none;
+      color: var(--lb-fg);
+      font-family: inherit;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 6px 0;
+      transition: color 0.2s;
+    }
+    .lb-close:hover { color: var(--fg); }
+
+    .lb-counter {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: var(--lb-fg);
+      white-space: nowrap;
+    }
+
+    .lb-prev, .lb-next {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--lb-btn);
+      border: none;
+      color: var(--fg);
+      font-family: inherit;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .lb-prev:hover, .lb-next:hover { background: var(--lb-btn-hover); }
+    .lb-prev { left: 20px; }
+    .lb-next { right: 20px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1 class="title">studio:Revolver</h1>
+    <label class="theme-control" id="themeToggle" title="Toggle theme">
+      <span class="theme-label" id="themeLabel">Dark</span>
+      <div class="switch-track">
+        <div class="switch-knob"></div>
+      </div>
+    </label>
+  </header>
+  <hr class="divider" />
+
+  <section class="grid" id="grid">
+    <div class="grid-loading" id="gridLoading">Loading</div>
+  </section>
+
+  <footer>
+    <div class="footer-links">
+      <a href="https://revolver.ws" target="_blank" rel="noopener noreferrer">revolver.ws</a>
+      <a href="https://instagram.com/revolver.ws" target="_blank" rel="noopener noreferrer">Instagram</a>
+      <a href="mailto:lizzie@revolver.ws">Contact</a>
+    </div>
+    <span class="footer-copy">© studio:Revolver</span>
+  </footer>
+
+  <!-- Lightbox -->
+  <div class="lb" id="lb" role="dialog" aria-modal="true">
+    <div class="lb-inner">
+      <button class="lb-close" id="lbClose">Close</button>
+      <button class="lb-prev" id="lbPrev">← Prev</button>
+      <img class="lb-img" id="lbImg" src="" alt="" />
+      <button class="lb-next" id="lbNext">Next →</button>
+      <span class="lb-counter" id="lbCounter"></span>
+    </div>
+  </div>
+
+  <script>
+    const CLOUD = 'dn9nqgxni';
+    const TAG   = 'revolver';
+
+    function imgUrl(publicId, width = 1400) {
+      return `https://res.cloudinary.com/${CLOUD}/image/upload/f_auto,q_auto,w_${width}/${publicId}`;
+    }
+
+    // ── Theme toggle ──
+    const toggle     = document.getElementById('themeToggle');
+    const themeLabel = document.getElementById('themeLabel');
+    toggle.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      themeLabel.textContent = isDark ? 'Light' : 'Dark';
+    });
+
+    // ── Lightbox ──
+    const lb        = document.getElementById('lb');
+    const lbImg     = document.getElementById('lbImg');
+    const lbCounter = document.getElementById('lbCounter');
+    let images  = [];   // populated after fetch
+    let current = 0;
+
+    function show(index) {
+      current = (index + images.length) % images.length;
+      const img = images[current];
+      lbImg.classList.remove('loaded');
+      lbImg.src = imgUrl(img.public_id, 1800);
+      lbImg.onload = () => lbImg.classList.add('loaded');
+      lbCounter.textContent = `${current + 1} / ${images.length}`;
+      lb.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLb() {
+      lb.classList.remove('open');
+      document.body.style.overflow = '';
+      lbImg.src = '';
+    }
+
+    document.getElementById('lbClose').addEventListener('click', closeLb);
+    document.getElementById('lbPrev').addEventListener('click', () => show(current - 1));
+    document.getElementById('lbNext').addEventListener('click', () => show(current + 1));
+    lb.addEventListener('click', e => { if (e.target === lb) closeLb(); });
+    document.addEventListener('keydown', e => {
+      if (!lb.classList.contains('open')) return;
+      if (e.key === 'Escape')     closeLb();
+      if (e.key === 'ArrowLeft')  show(current - 1);
+      if (e.key === 'ArrowRight') show(current + 1);
+    });
+
+    // ── Fetch + build grid ──
+    async function buildGrid() {
+      const grid    = document.getElementById('grid');
+      const loading = document.getElementById('gridLoading');
+
+      let resources;
+      try {
+        const res  = await fetch(`https://res.cloudinary.com/${CLOUD}/image/list/${TAG}.json`);
+        if (!res.ok) throw new Error(res.status);
+        ({ resources } = await res.json());
+      } catch (err) {
+        loading.textContent = 'Could not load images.';
+        console.error('Cloudinary fetch failed:', err);
+        return;
+      }
+
+      images = resources; // share with lightbox
+
+      // Height-balanced 2-column masonry
+      const cols    = [[], []];
+      const heights = [0, 0];
+      images.forEach(img => {
+        const ratio   = (img.height || 1) / (img.width || 1);
+        const shorter = heights[0] <= heights[1] ? 0 : 1;
+        cols[shorter].push(img);
+        heights[shorter] += ratio;
+      });
+
+      // Replace loading state with columns
+      grid.innerHTML = '';
+      cols.forEach((col, ci) => {
+        const colEl = document.createElement('div');
+        colEl.className = 'col';
+
+        col.forEach(img => {
+          const index = images.indexOf(img);
+          const w = img.width  || 1;
+          const h = img.height || 1;
+
+          const cell = document.createElement('div');
+          cell.className = 'still';
+          cell.style.aspectRatio = `${w} / ${h}`;
+          cell.addEventListener('click', () => show(index));
+
+          const el = document.createElement('img');
+          el.src   = imgUrl(img.public_id, 900);
+          el.alt   = '';
+          el.draggable = false;
+          el.addEventListener('contextmenu', e => e.preventDefault());
+          el.addEventListener('load', () => el.classList.add('loaded'));
+          if (el.complete) el.classList.add('loaded');
+
+          cell.appendChild(el);
+          colEl.appendChild(cell);
+        });
+
+        grid.appendChild(colEl);
+      });
+    }
+
+    buildGrid();
+  </script>
+
+</body>
+</html>
