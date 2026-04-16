@@ -326,10 +326,37 @@
 
   <script>
     const CLOUD = 'dn9nqgxni';
-    const TAG   = 'revolver';
+
+    // ── Add a new project tag here each time you create a new job ──
+    const PROJECT_TAGS = [
+      'rev-josh',
+      'nedd',
+      'norco',
+      'rev-amp',
+    ];
 
     function imgUrl(publicId, width = 1400) {
       return `https://res.cloudinary.com/${CLOUD}/image/upload/f_auto,q_auto,w_${width}/${publicId}`;
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    async function fetchTag(tag) {
+      try {
+        const res = await fetch(`https://res.cloudinary.com/${CLOUD}/image/list/${tag}.json`);
+        if (!res.ok) return [];
+        const { resources } = await res.json();
+        return resources ?? [];
+      } catch {
+        return [];
+      }
     }
 
     // ── Theme toggle ──
@@ -345,7 +372,7 @@
     const lb        = document.getElementById('lb');
     const lbImg     = document.getElementById('lbImg');
     const lbCounter = document.getElementById('lbCounter');
-    let images  = [];   // populated after fetch
+    let images  = [];
     let current = 0;
 
     function show(index) {
@@ -381,18 +408,32 @@
       const grid    = document.getElementById('grid');
       const loading = document.getElementById('gridLoading');
 
-      let resources;
       try {
-        const res  = await fetch(`https://res.cloudinary.com/${CLOUD}/image/list/${TAG}.json`);
-        if (!res.ok) throw new Error(res.status);
-        ({ resources } = await res.json());
+        // Fetch title image and all project groups in parallel
+        const [titleResources, ...projectResources] = await Promise.all([
+          fetchTag('title'),
+          ...PROJECT_TAGS.map(fetchTag),
+        ]);
+
+        // Title image — always first, never shuffled
+        const titleImage = titleResources[0] ?? null;
+
+        // Shuffle within each project group, then shuffle the group order
+        const shuffledGroups = shuffle(
+          projectResources.map(group => shuffle(group))
+        );
+
+        // Flatten: title first, then randomised groups
+        images = [
+          ...(titleImage ? [titleImage] : []),
+          ...shuffledGroups.flat(),
+        ];
+
       } catch (err) {
         loading.textContent = 'Could not load images.';
-        console.error('Cloudinary fetch failed:', err);
+        console.error(err);
         return;
       }
-
-      images = resources; // share with lightbox
 
       // Height-balanced 2-column masonry
       const cols    = [[], []];
@@ -404,9 +445,8 @@
         heights[shorter] += ratio;
       });
 
-      // Replace loading state with columns
       grid.innerHTML = '';
-      cols.forEach((col, ci) => {
+      cols.forEach(col => {
         const colEl = document.createElement('div');
         colEl.className = 'col';
 
@@ -421,8 +461,8 @@
           cell.addEventListener('click', () => show(index));
 
           const el = document.createElement('img');
-          el.src   = imgUrl(img.public_id, 900);
-          el.alt   = '';
+          el.src      = imgUrl(img.public_id, 900);
+          el.alt      = '';
           el.draggable = false;
           el.addEventListener('contextmenu', e => e.preventDefault());
           el.addEventListener('load', () => el.classList.add('loaded'));
