@@ -93,33 +93,21 @@
     }
     .theme-control:hover .theme-label { color: var(--fg-hover); }
 
+    /* circle toggle */
     .switch-track {
-      position: relative;
-      width: 28px;
-      height: 16px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid var(--fg);
       background: transparent;
-      transition: border-color 0.2s, background 0.2s;
+      transition: background 0.3s, border-color 0.3s;
       flex-shrink: 0;
     }
-    .theme-control:hover .switch-track { border-color: var(--fg-muted); }
-    [data-theme="light"] .switch-track { background: rgba(0,0,0,0.08); }
-
-    .switch-knob {
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--fg-muted);
-      transition: transform 0.2s, background 0.2s;
-    }
-    [data-theme="light"] .switch-knob {
-      transform: translateX(12px);
+    .theme-control:hover .switch-track {
       background: var(--fg);
     }
+
+    .switch-knob { display: none; }
 
     .divider {
       margin: 16px 40px 0;
@@ -279,14 +267,49 @@
     .lb-prev:hover, .lb-next:hover { background: var(--lb-btn-hover); }
     .lb-prev { left: 20px; }
     .lb-next { right: 20px; }
+
+    /* ── Mobile ── */
+    @media (max-width: 600px) {
+      header {
+        padding: 32px 20px 0;
+      }
+
+      .divider {
+        margin: 12px 20px 0;
+      }
+
+      .grid {
+        padding: 2px 20px 0;
+        gap: 2px;
+      }
+
+      .col {
+        gap: 2px;
+      }
+
+      footer {
+        padding: 20px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+
+      .lb-prev, .lb-next {
+        padding: 16px 14px;
+      }
+
+      .lb-img {
+        max-width: 100vw;
+        max-height: calc(100vh - 100px);
+      }
+    }
   </style>
 </head>
 <body>
 
   <header>
-    <h1 class="title">studio:Revolver</h1>
+    <h1 class="title">Studio:Revolver / Portfolio</h1>
     <label class="theme-control" id="themeToggle" title="Toggle theme">
-      <span class="theme-label" id="themeLabel">Dark</span>
       <div class="switch-track">
         <div class="switch-knob"></div>
       </div>
@@ -366,41 +389,36 @@
     const lb        = document.getElementById('lb');
     const lbImg     = document.getElementById('lbImg');
     const lbCounter = document.getElementById('lbCounter');
-    let images  = [];
-    let current = 0;
+    let images   = [];  // all images including title (for grid)
+    let lbImages = [];  // lightbox only — title excluded
+    let current  = 0;
 
     const preloadCache = {};
     function preload(index) {
-      const i = (index + images.length) % images.length;
-      if (!images[i] || preloadCache[i]) return;
+      const i = (index + lbImages.length) % lbImages.length;
+      if (!lbImages[i] || preloadCache[i]) return;
       const pre = new Image();
-      pre.src = imgUrl(images[i].public_id, 1800);
+      pre.src = imgUrl(lbImages[i].public_id, 1800);
       preloadCache[i] = pre;
     }
 
-    function show(index) {
-      current = (index + images.length) % images.length;
-      const img = images[current];
+    function show(lbIndex) {
+      current = (lbIndex + lbImages.length) % lbImages.length;
+      const img = lbImages[current];
 
-      // Show the already-cached low-res thumbnail instantly
-      const lowRes = current === 0
-        ? `https://res.cloudinary.com/${CLOUD}/image/upload/f_auto,q_100,w_2500/${img.public_id}`
-        : imgUrl(img.public_id, 900);
       lbImg.classList.remove('loaded');
-      lbImg.src = lowRes;
-      lbImg.classList.add('loaded'); // low-res is already in browser cache — show immediately
+      lbImg.src = imgUrl(img.public_id, 900);
+      lbImg.classList.add('loaded');
 
-      // Swap to high-res in the background, only if still on this image
       const hiRes = new Image();
       const thisIndex = current;
       hiRes.src = imgUrl(img.public_id, 1800);
       hiRes.onload = () => { if (current === thisIndex) lbImg.src = hiRes.src; };
 
-      lbCounter.textContent = `${current + 1} / ${images.length}`;
+      lbCounter.textContent = `${current + 1} / ${lbImages.length}`;
       lb.classList.add('open');
       document.body.style.overflow = 'hidden';
 
-      // Preload neighbours
       preload(current + 1);
       preload(current - 1);
     }
@@ -443,10 +461,9 @@
         );
 
         // Flatten: title first, then randomised groups
-        images = [
-          ...(titleImage ? [titleImage] : []),
-          ...shuffledGroups.flat(),
-        ];
+        const projectImages = shuffledGroups.flat();
+        images   = [...(titleImage ? [titleImage] : []), ...projectImages];
+        lbImages = projectImages; // title excluded from lightbox
 
       } catch (err) {
         loading.textContent = 'Could not load images.';
@@ -477,7 +494,9 @@
           const cell = document.createElement('div');
           cell.className = 'still';
           cell.style.aspectRatio = `${w} / ${h}`;
-          cell.addEventListener('click', () => show(index));
+          const lbIndex = lbImages.indexOf(img);
+          if (lbIndex !== -1) cell.addEventListener('click', () => show(lbIndex));
+          else cell.style.cursor = 'default';
 
           const el = document.createElement('img');
           el.src      = index === 0
