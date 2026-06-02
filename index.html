@@ -50,6 +50,10 @@
       font-style: normal;
     }
 
+    html {
+      height: 100%;
+    }
+
     html, body {
       background: var(--bg);
       color: var(--fg);
@@ -60,6 +64,13 @@
       transition: background 0.25s, color 0.25s;
       font-kerning: none;
       letter-spacing: 0;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* ── Header ── */
@@ -109,40 +120,113 @@
 
     .switch-knob { display: none; }
 
-    .divider {
-      margin: 16px 40px 0;
-      border: none;
-      border-top: 1px solid var(--border);
+    .divider { display: none; }
+
+    /* ── Grid wrapper (non-scrolling, holds overlay) ── */
+    .grid-wrapper {
+      flex: 1;
+      min-height: 0;
+      position: relative;
     }
 
     /* ── Grid ── */
     .grid {
-      padding: 3px 40px 0;
+      height: 100%;
+      padding: 16px 40px 16px;
       display: flex;
-      gap: 3px;
-      min-height: 200px;
+      flex-direction: column;
+      gap: 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .grid::-webkit-scrollbar { display: none; }
+
+    /* ── Row ── */
+    .h-row {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 24px;
+      align-items: stretch;
+      padding-bottom: 28px; /* reserved space for title below images */
     }
 
-    .col {
+    /* ── Project group (images only, no footer) ── */
+    .proj-group {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100%; /* fills content area, excludes padding-bottom */
+    }
+
+    .proj-images {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 4px;
+      align-items: stretch;
+    }
+
+    /* ── Sticky title overlay ── */
+    .title-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px 40px;
+      z-index: 5;
+    }
+
+    .title-overlay-row {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      justify-content: flex-end; /* push title-bar to bottom (below images) */
     }
 
+    .title-bar {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sticky-title {
+      font-size: 9px;
+      color: var(--fg-muted);
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .title-line {
+      flex-shrink: 0;
+      width: 0; /* set dynamically by JS */
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Still ── */
     .still {
-      width: 100%;
-      background: var(--bg-still);
+      flex-shrink: 0;
+      height: 100%;
       cursor: pointer;
+    }
+    .still:hover .still-img { opacity: 0.8; }
+
+    .still-img {
+      height: 100%;
       overflow: hidden;
+      background: var(--bg-still);
       transition: opacity 0.2s;
     }
-    .still:hover { opacity: 0.8; }
 
     .still img {
-      width: 100%;
       height: 100%;
-      object-fit: cover;
+      width: auto;
       display: block;
       opacity: 0;
       transition: opacity 0.4s;
@@ -163,9 +247,8 @@
 
     /* ── Footer ── */
     footer {
-      margin-top: 40px;
-      padding: 20px 40px;
-      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      padding: 16px 40px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -278,14 +361,10 @@
         margin: 12px 20px 0;
       }
 
-      .grid {
-        padding: 2px 20px 0;
-        gap: 2px;
-      }
-
-      .col {
-        gap: 2px;
-      }
+      .grid { padding: 12px 20px; gap: 12px; }
+      .title-overlay { padding: 12px 20px; gap: 12px; }
+      .h-row { padding-bottom: 24px; }
+      footer { padding: 12px 20px; }
 
       footer {
         padding: 20px;
@@ -317,9 +396,25 @@
   </header>
   <hr class="divider" />
 
-  <section class="grid" id="grid">
-    <div class="grid-loading" id="gridLoading">Loading</div>
-  </section>
+  <div class="grid-wrapper">
+    <section class="grid" id="grid">
+      <div class="grid-loading" id="gridLoading">Loading</div>
+    </section>
+    <div class="title-overlay" id="titleOverlay">
+      <div class="title-overlay-row">
+        <div class="title-bar">
+          <span class="sticky-title" id="stickyTitle0"></span>
+          <div class="title-line" id="titleLine0"></div>
+        </div>
+      </div>
+      <div class="title-overlay-row">
+        <div class="title-bar">
+          <span class="sticky-title" id="stickyTitle1"></span>
+          <div class="title-line" id="titleLine1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <footer>
     <div class="footer-links">
@@ -343,6 +438,18 @@
 
   <script>
     const CLOUD = 'dn9nqgxni';
+
+    // ── Custom display titles per project tag ──
+    const PROJECT_TITLES = {
+      'rev-whiskas':      'Whiskas — Cat Conversion System',
+      'nedd':             'Samsung — Nedd Brockmann',
+      'rev-josh':         'Samsung — Josh Heuston',
+      'rev-amp':          'AMP — Super Close to Your Super',
+      'rev-welcomepacks': 'Samsung — Welcome Packs',
+      'norco':            'Norco — Cowsplay',
+      'rev-spirit':       'Spirit of Tasmania — Pack More In, Get More Out',
+      'portraits':        'Portraits',
+    };
 
     // ── Add a new project tag here each time you create a new job ──
     const PROJECT_TAGS = [
@@ -393,8 +500,7 @@
     const lb        = document.getElementById('lb');
     const lbImg     = document.getElementById('lbImg');
     const lbCounter = document.getElementById('lbCounter');
-    let images   = [];  // all images including title (for grid)
-    let lbImages = [];  // lightbox only — title excluded
+    let lbImages = [];
     let current  = 0;
 
     const preloadCache = {};
@@ -411,7 +517,7 @@
       const img = lbImages[current];
 
       lbImg.classList.remove('loaded');
-      lbImg.src = imgUrl(img.public_id, 900);
+      lbImg.src = imgUrl(img.public_id, 900); // cached from grid — shows instantly
       lbImg.classList.add('loaded');
 
       const hiRes = new Image();
@@ -444,30 +550,29 @@
       if (e.key === 'ArrowRight') show(current + 1);
     });
 
-    // ── Fetch + build grid ──
+    function formatTag(tag) {
+      return PROJECT_TITLES[tag] || tag.replace(/^rev-/, '').replace(/-/g, ' ');
+    }
+
+    // ── Fetch + build ──
     async function buildGrid() {
       const grid    = document.getElementById('grid');
       const loading = document.getElementById('gridLoading');
 
       try {
-        // Fetch title image and all project groups in parallel
-        const [titleResources, ...projectResources] = await Promise.all([
-          fetchTag('title'),
-          ...PROJECT_TAGS.map(fetchTag),
-        ]);
+        const projectResources = await Promise.all(PROJECT_TAGS.map(fetchTag));
 
-        // Title image — always first, never shuffled
-        const titleImage = titleResources[0] ?? null;
-
-        // Shuffle within each project group, then shuffle the group order
-        const shuffledGroups = shuffle(
-          projectResources.map(group => shuffle(group))
+        // Pair each tag with its shuffled images, filter empty, shuffle group order
+        const groups = shuffle(
+          PROJECT_TAGS
+            .map((tag, i) => ({ tag, imgs: shuffle(projectResources[i]) }))
+            .filter(g => g.imgs.length > 0)
         );
 
-        // Flatten: title first, then randomised groups
-        const projectImages = shuffledGroups.flat();
-        images   = [...(titleImage ? [titleImage] : []), ...projectImages];
-        lbImages = projectImages; // title excluded from lightbox
+        // Flat list for lightbox, tagged with project name
+        lbImages = groups.flatMap(({ tag, imgs }) =>
+          imgs.map(img => ({ ...img, _project: formatTag(tag) }))
+        );
 
       } catch (err) {
         loading.textContent = 'Could not load images.';
@@ -475,54 +580,139 @@
         return;
       }
 
-      // Height-balanced 2-column masonry
-      const cols    = [[], []];
-      const heights = [0, 0];
-      images.forEach(img => {
-        const ratio   = (img.height || 1) / (img.width || 1);
-        const shorter = heights[0] <= heights[1] ? 0 : 1;
-        cols[shorter].push(img);
-        heights[shorter] += ratio;
+      // Group lbImages into consecutive project blocks
+      const projBlocks = [];
+      lbImages.forEach(img => {
+        const last = projBlocks[projBlocks.length - 1];
+        if (last && last.name === img._project) last.imgs.push(img);
+        else projBlocks.push({ name: img._project, imgs: [img] });
       });
+
+      // Split blocks into 2 width-balanced rows at a block boundary
+      const blockWidths = projBlocks.map(b =>
+        b.imgs.reduce((s, img) => s + (img.width || 1) / (img.height || 1), 0)
+      );
+      const total = blockWidths.reduce((a, b) => a + b, 0);
+      let cum = 0, splitAt = 0, bestDiff = Infinity;
+      blockWidths.forEach((w, i) => {
+        cum += w;
+        const diff = Math.abs(cum - (total - cum));
+        if (diff < bestDiff) { bestDiff = diff; splitAt = i + 1; }
+      });
+
+      const rowBlocks = [projBlocks.slice(0, splitAt), projBlocks.slice(splitAt)];
 
       grid.innerHTML = '';
-      cols.forEach(col => {
-        const colEl = document.createElement('div');
-        colEl.className = 'col';
 
-        col.forEach(img => {
-          const index = images.indexOf(img);
-          const w = img.width  || 1;
-          const h = img.height || 1;
+      rowBlocks.forEach(blocks => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'h-row';
 
-          const cell = document.createElement('div');
-          cell.className = 'still';
-          cell.style.aspectRatio = `${w} / ${h}`;
-          const lbIndex = lbImages.indexOf(img);
-          if (lbIndex !== -1) cell.addEventListener('click', () => show(lbIndex));
-          else cell.style.cursor = 'default';
+        blocks.forEach(block => {
+          const groupEl = document.createElement('div');
+          groupEl.className = 'proj-group';
 
-          const el = document.createElement('img');
-          el.src      = index === 0
-            ? `https://res.cloudinary.com/${CLOUD}/image/upload/f_auto,q_100,w_2500/${img.public_id}`
-            : imgUrl(img.public_id, 900);
-          el.alt      = '';
-          el.draggable = false;
-          el.addEventListener('load', () => el.classList.add('loaded'));
-          if (el.complete) el.classList.add('loaded');
+          // Images row
+          const imgsEl = document.createElement('div');
+          imgsEl.className = 'proj-images';
 
-          cell.appendChild(el);
-          colEl.appendChild(cell);
+          block.imgs.forEach(img => {
+            const lbIndex = lbImages.indexOf(img);
+
+            const cell = document.createElement('div');
+            cell.className = 'still';
+            cell.addEventListener('click', () => show(lbIndex));
+
+            const imgWrap = document.createElement('div');
+            imgWrap.className = 'still-img';
+
+            const el = document.createElement('img');
+            el.src      = imgUrl(img.public_id, 900);
+            el.alt      = '';
+            el.draggable = false;
+            el.addEventListener('load', () => el.classList.add('loaded'));
+            if (el.complete) el.classList.add('loaded');
+
+            imgWrap.appendChild(el);
+            cell.appendChild(imgWrap);
+            imgsEl.appendChild(cell);
+          });
+
+          groupEl.appendChild(imgsEl);
+
+
+          // Store data for width calculation and sticky title detection
+          const ratioSum = block.imgs.reduce((s, img) => s + (img.width || 1) / (img.height || 1), 0);
+          groupEl.dataset.ratioSum  = ratioSum;
+          groupEl.dataset.imgCount  = block.imgs.length;
+          groupEl.dataset.title     = block.name;
+
+          rowEl.appendChild(groupEl);
         });
 
-        grid.appendChild(colEl);
+        grid.appendChild(rowEl);
       });
+
+      // Wait two frames for the flex layout to settle before measuring
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        applyGroupWidths();
+        updateStickyTitles();
+      }));
     }
 
     // Disable right-click on all images
     document.addEventListener('contextmenu', e => {
       if (e.target.tagName === 'IMG') e.preventDefault();
     });
+
+    // Set explicit pixel widths on proj-groups based on actual rendered image height
+    function applyGroupWidths() {
+      document.querySelectorAll('.proj-group').forEach(group => {
+        const imgsEl = group.querySelector('.proj-images');
+        const imgsH  = imgsEl ? imgsEl.offsetHeight : 0;
+        if (!imgsH) return;
+        const ratioSum = parseFloat(group.dataset.ratioSum);
+        const imgCount = parseInt(group.dataset.imgCount);
+        const w = ratioSum * imgsH + (imgCount - 1) * 4;
+        group.style.width = w + 'px';
+      });
+    }
+    window.addEventListener('resize', applyGroupWidths);
+
+    // Update sticky titles and dynamic line widths on scroll
+    function updateStickyTitles() {
+      const gridEl   = document.getElementById('grid');
+      const gridRect = gridEl.getBoundingClientRect();
+      const pinX     = gridRect.left + 40;
+
+      gridEl.querySelectorAll('.h-row').forEach((row, i) => {
+        const groups = Array.from(row.querySelectorAll('.proj-group'));
+        let active   = groups[0];
+        groups.forEach(g => {
+          if (g.getBoundingClientRect().left <= pinX + 2) active = g;
+        });
+
+        const titleEl = document.getElementById(`stickyTitle${i}`);
+        const lineEl  = document.getElementById(`titleLine${i}`);
+
+        if (titleEl && active) titleEl.textContent = active.dataset.title;
+
+        if (lineEl && titleEl && active) {
+          const pointA   = titleEl.getBoundingClientRect().right + 10; // gap after title
+          const pointB   = active.getBoundingClientRect().right;
+          lineEl.style.width = Math.max(0, pointB - pointA) + 'px';
+        }
+      });
+    }
+
+    // Convert vertical scroll to horizontal on the grid
+    const gridEl = document.getElementById('grid');
+    gridEl.addEventListener('wheel', e => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      e.currentTarget.scrollLeft += e.deltaY;
+    }, { passive: false });
+    gridEl.addEventListener('scroll', updateStickyTitles);
 
     buildGrid();
   </script>
