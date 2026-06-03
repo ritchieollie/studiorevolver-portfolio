@@ -149,15 +149,14 @@
       display: flex;
       gap: 24px;
       align-items: stretch;
-      padding-bottom: 28px; /* reserved space for title below images */
     }
 
-    /* ── Project group (images only, no footer) ── */
+    /* ── Project group ── */
     .proj-group {
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      height: 100%; /* fills content area, excludes padding-bottom */
+      height: 100%;
     }
 
     .proj-images {
@@ -168,46 +167,40 @@
       align-items: stretch;
     }
 
-    /* ── Sticky title overlay ── */
-    .title-overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      padding: 16px 40px;
-      z-index: 5;
-    }
-
-    .title-overlay-row {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end; /* push title-bar to bottom (below images) */
-    }
-
-    .title-bar {
+    /* dedicated slot below images for the JS-driven sticky title */
+    .proj-title-slot {
+      flex-shrink: 0;
       height: 28px;
+      position: relative;
+      overflow: visible;
+    }
+
+    .proj-sticky-title {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
       display: flex;
       align-items: center;
-      gap: 10px;
-    }
-
-    .sticky-title {
       font-size: 9px;
       color: var(--fg-muted);
-      line-height: 1;
       white-space: nowrap;
-      flex-shrink: 0;
+      transition: color 0.2s;
     }
+    .proj-group:hover .proj-sticky-title { color: var(--fg); }
 
-    .title-line {
-      flex-shrink: 0;
-      width: 0; /* set dynamically by JS */
+    /* line lives inside the slot — same coord space, no conversion needed */
+    .proj-title-line {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: 0;
       height: 1px;
-      background: var(--border);
+      background: var(--fg);
+      opacity: 0;
+      transition: opacity 0.25s;
     }
+    .proj-group:hover .proj-title-line { opacity: 1; }
 
     /* ── Still ── */
     .still {
@@ -362,8 +355,6 @@
       }
 
       .grid { padding: 12px 20px; gap: 12px; }
-      .title-overlay { padding: 12px 20px; gap: 12px; }
-      .h-row { padding-bottom: 24px; }
       footer { padding: 12px 20px; }
 
       footer {
@@ -400,20 +391,6 @@
     <section class="grid" id="grid">
       <div class="grid-loading" id="gridLoading">Loading</div>
     </section>
-    <div class="title-overlay" id="titleOverlay">
-      <div class="title-overlay-row">
-        <div class="title-bar">
-          <span class="sticky-title" id="stickyTitle0"></span>
-          <div class="title-line" id="titleLine0"></div>
-        </div>
-      </div>
-      <div class="title-overlay-row">
-        <div class="title-bar">
-          <span class="sticky-title" id="stickyTitle1"></span>
-          <div class="title-line" id="titleLine1"></div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <footer>
@@ -640,6 +617,20 @@
 
           groupEl.appendChild(imgsEl);
 
+          // Title slot: fixed 28px strip below images
+          const titleSlot = document.createElement('div');
+          titleSlot.className = 'proj-title-slot';
+
+          const stickyTitle = document.createElement('div');
+          stickyTitle.className = 'proj-sticky-title';
+          stickyTitle.textContent = block.name;
+
+          const titleLine = document.createElement('div');
+          titleLine.className = 'proj-title-line';
+
+          titleSlot.appendChild(stickyTitle);
+          titleSlot.appendChild(titleLine);
+          groupEl.appendChild(titleSlot);
 
           // Store data for width calculation and sticky title detection
           const ratioSum = block.imgs.reduce((s, img) => s + (img.width || 1) / (img.height || 1), 0);
@@ -675,33 +666,47 @@
         const imgCount = parseInt(group.dataset.imgCount);
         const w = ratioSum * imgsH + (imgCount - 1) * 4;
         group.style.width = w + 'px';
+        // Title slot matches group width so absolute positioning works
+        const slot = group.querySelector('.proj-title-slot');
+        if (slot) slot.style.width = w + 'px';
       });
     }
     window.addEventListener('resize', applyGroupWidths);
 
-    // Update sticky titles and dynamic line widths on scroll
+    // JS sticky simulation — no overlay, lines live inside each slot
     function updateStickyTitles() {
       const gridEl   = document.getElementById('grid');
       const gridRect = gridEl.getBoundingClientRect();
       const pinX     = gridRect.left + 40;
 
-      gridEl.querySelectorAll('.h-row').forEach((row, i) => {
+      gridEl.querySelectorAll('.h-row').forEach(row => {
         const groups = Array.from(row.querySelectorAll('.proj-group'));
-        let active   = groups[0];
+
+        // Active = last group whose left has crossed pinX
+        let active = groups[0];
         groups.forEach(g => {
-          if (g.getBoundingClientRect().left <= pinX + 2) active = g;
+          if (g.getBoundingClientRect().left <= pinX) active = g;
         });
 
-        const titleEl = document.getElementById(`stickyTitle${i}`);
-        const lineEl  = document.getElementById(`titleLine${i}`);
+        groups.forEach(group => {
+          const titleEl = group.querySelector('.proj-sticky-title');
+          const lineEl  = group.querySelector('.proj-title-line');
+          if (!titleEl) return;
 
-        if (titleEl && active) titleEl.textContent = active.dataset.title;
+          const groupRect = group.getBoundingClientRect();
+          const imgsRight = group.querySelector('.proj-images')?.getBoundingClientRect().right ?? groupRect.right;
 
-        if (lineEl && titleEl && active) {
-          const pointA   = titleEl.getBoundingClientRect().right + 10; // gap after title
-          const pointB   = active.getBoundingClientRect().right;
-          lineEl.style.width = Math.max(0, pointB - pointA) + 'px';
-        }
+          // JS sticky: clamp title between 0 and last-image right edge
+          const raw      = pinX - groupRect.left;
+          const max      = imgsRight - groupRect.left - titleEl.offsetWidth;
+          const titleLeft = Math.max(0, Math.min(raw, max));
+          titleEl.style.left = titleLeft + 'px';
+
+          // Line: starts after title text, ends at slot's right edge (right: 0)
+          if (lineEl) {
+            lineEl.style.left = (titleLeft + titleEl.offsetWidth + 16) + 'px';
+          }
+        });
       });
     }
 
