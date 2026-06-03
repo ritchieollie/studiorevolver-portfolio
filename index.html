@@ -71,11 +71,12 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      padding: 16px 40px;
     }
 
     /* ── Header ── */
     header {
-      padding: 48px 40px 0;
+      padding: 48px 0 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -132,7 +133,7 @@
     /* ── Grid ── */
     .grid {
       height: 100%;
-      padding: 16px 40px 16px;
+      padding: 16px 0;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -241,7 +242,7 @@
     /* ── Footer ── */
     footer {
       flex-shrink: 0;
-      padding: 16px 40px;
+      padding: 16px 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -316,14 +317,26 @@
     }
     .lb-close:hover { color: var(--fg); }
 
-    .lb-counter {
+    .lb-meta {
       position: absolute;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
+      display: flex;
+      gap: 16px;
+      align-items: baseline;
+      white-space: nowrap;
+    }
+
+    .lb-project {
       font-size: 9px;
       color: var(--lb-fg);
-      white-space: nowrap;
+    }
+
+    .lb-counter {
+      font-size: 9px;
+      color: var(--lb-fg);
+      opacity: 0.5;
     }
 
     .lb-prev, .lb-next {
@@ -346,32 +359,42 @@
 
     /* ── Mobile ── */
     @media (max-width: 600px) {
-      header {
-        padding: 32px 20px 0;
+      header { padding: 16px 0 16px; }
+
+      /* scroll the feed, not the page */
+      body { overflow: hidden; padding: 8px 16px; }
+      .grid-wrapper { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+      /* 2-column masonry */
+      .grid {
+        height: auto;
+        overflow: visible;
+        display: block;
+        column-count: 2;
+        column-gap: 2px;
+        padding: 2px;
       }
 
-      .divider {
-        margin: 12px 20px 0;
+      /* flatten nested structure so stills flow into columns */
+      .h-row, .proj-group, .proj-images { display: contents; }
+
+      .still {
+        break-inside: avoid;
+        margin-bottom: 2px;
       }
 
-      .grid { padding: 12px 20px; gap: 12px; }
-      footer { padding: 12px 20px; }
+      /* native ratios */
+      .still { height: auto !important; width: 100%; }
+      .still-img { height: auto !important; width: 100%; }
+      .still img { width: 100% !important; height: 100% !important; object-fit: cover; }
 
-      footer {
-        padding: 20px;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-      }
+      /* hide desktop titles */
+      .proj-title-slot { display: none; }
 
-      .lb-prev, .lb-next {
-        padding: 16px 14px;
-      }
+      footer { padding: 20px 16px; flex-direction: column; align-items: flex-start; gap: 12px; }
 
-      .lb-img {
-        max-width: 100vw;
-        max-height: calc(100vh - 100px);
-      }
+      .lb-prev, .lb-next { padding: 16px 14px; }
+      .lb-img { max-width: 100vw; max-height: calc(100vh - 100px); }
     }
   </style>
 </head>
@@ -409,7 +432,10 @@
       <button class="lb-prev" id="lbPrev">← Prev</button>
       <img class="lb-img" id="lbImg" src="" alt="" />
       <button class="lb-next" id="lbNext">Next →</button>
-      <span class="lb-counter" id="lbCounter"></span>
+      <div class="lb-meta">
+        <span class="lb-project" id="lbProject"></span>
+        <span class="lb-counter" id="lbCounter"></span>
+      </div>
     </div>
   </div>
 
@@ -418,6 +444,7 @@
 
     // ── Custom display titles per project tag ──
     const PROJECT_TITLES = {
+      'rev-golf':         'Golf',
       'rev-whiskas':      'Whiskas — Cat Conversion System',
       'nedd':             'Samsung — Nedd Brockmann',
       'rev-josh':         'Samsung — Josh Heuston',
@@ -438,6 +465,7 @@
       'portraits',
       'rev-spirit',
       'rev-whiskas',
+      'rev-golf',
     ];
 
     function imgUrl(publicId, width = 1400) {
@@ -477,6 +505,7 @@
     const lb        = document.getElementById('lb');
     const lbImg     = document.getElementById('lbImg');
     const lbCounter = document.getElementById('lbCounter');
+    const lbProject = document.getElementById('lbProject');
     let lbImages = [];
     let current  = 0;
 
@@ -502,7 +531,11 @@
       hiRes.src = imgUrl(img.public_id, 1800);
       hiRes.onload = () => { if (current === thisIndex) lbImg.src = hiRes.src; };
 
-      lbCounter.textContent = `${current + 1} / ${lbImages.length}`;
+      const proj      = img._project || '';
+      const projImgs  = lbImages.filter(i => i._project === proj);
+      const posInProj = projImgs.indexOf(img) + 1;
+      lbProject.textContent = proj;
+      lbCounter.textContent = `${String(posInProj).padStart(2,'0')} / ${String(projImgs.length).padStart(2,'0')}`;
       lb.classList.add('open');
       document.body.style.overflow = 'hidden';
 
@@ -565,19 +598,15 @@
         else projBlocks.push({ name: img._project, imgs: [img] });
       });
 
-      // Split blocks into 2 width-balanced rows at a block boundary
-      const blockWidths = projBlocks.map(b =>
-        b.imgs.reduce((s, img) => s + (img.width || 1) / (img.height || 1), 0)
-      );
-      const total = blockWidths.reduce((a, b) => a + b, 0);
-      let cum = 0, splitAt = 0, bestDiff = Infinity;
-      blockWidths.forEach((w, i) => {
-        cum += w;
-        const diff = Math.abs(cum - (total - cum));
-        if (diff < bestDiff) { bestDiff = diff; splitAt = i + 1; }
+      // Greedy bin-packing: assign each project to the shorter row
+      const rowBlocks = [[], []];
+      const rowWidths = [0, 0];
+      projBlocks.forEach(block => {
+        const w = block.imgs.reduce((s, img) => s + (img.width || 1) / (img.height || 1), 0);
+        const shorter = rowWidths[0] <= rowWidths[1] ? 0 : 1;
+        rowBlocks[shorter].push(block);
+        rowWidths[shorter] += w;
       });
-
-      const rowBlocks = [projBlocks.slice(0, splitAt), projBlocks.slice(splitAt)];
 
       grid.innerHTML = '';
 
@@ -602,6 +631,7 @@
 
             const imgWrap = document.createElement('div');
             imgWrap.className = 'still-img';
+            imgWrap.style.aspectRatio = `${img.width || 1} / ${img.height || 1}`;
 
             const el = document.createElement('img');
             el.src      = imgUrl(img.public_id, 900);
@@ -677,7 +707,7 @@
     function updateStickyTitles() {
       const gridEl   = document.getElementById('grid');
       const gridRect = gridEl.getBoundingClientRect();
-      const pinX     = gridRect.left + 40;
+      const pinX     = gridRect.left;
 
       gridEl.querySelectorAll('.h-row').forEach(row => {
         const groups = Array.from(row.querySelectorAll('.proj-group'));
@@ -713,6 +743,7 @@
     // Convert vertical scroll to horizontal on the grid
     const gridEl = document.getElementById('grid');
     gridEl.addEventListener('wheel', e => {
+      if (window.innerWidth <= 600) return; // let mobile scroll vertically
       if (e.deltaY === 0) return;
       e.preventDefault();
       e.currentTarget.scrollLeft += e.deltaY;
